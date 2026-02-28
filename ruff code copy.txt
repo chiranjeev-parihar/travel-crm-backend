@@ -1,0 +1,22 @@
+
+function formatDate(raw) {
+  if (!raw) return null;
+  const cleaned = raw.toString().trim();
+
+  // handle DD/MM/YYYY or DD/MM/YYYY HH:MM:SS
+  if (cleaned.includes("/")) {
+    const parts = cleaned.split(" ")[0].split("/");
+    if (parts.length === 3) {
+      const [day, month, year] = parts;
+      return `${year}-${month}-${day}`;
+    }
+  }
+
+  // already ISO-ish
+  if (cleaned.includes("-")) {
+    return cleaned.split("T")[0];
+  }
+
+  // unrecognised format
+  return null;
+}
