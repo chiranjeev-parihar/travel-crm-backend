@@ -94,14 +94,30 @@ function syncGoogleSheet(pool) {
     try{
         await pool.query(
           `
-          INSERT INTO leads(
-            timestamp,name,phone,email,travel_date,number_of_person,
-            destination,package_selected,source,lead_id,
-            lead_status,assigned_sales_person,next_followup_date,
-            payment_status,notes
+          INSERT INTO leads (
+  timestamp,
+  name,
+  phone,
+  email,
+  travel_date,
+  number_of_person,
+  destination,
+  package_selected,
+  source,
+  lead_id
           )
           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-          ON CONFLICT (phone) DO NOTHING
+          ON CONFLICT (phone) 
+  DO UPDATE SET
+  timestamp = EXCLUDED.timestamp,
+  name = EXCLUDED.name,
+  email = EXCLUDED.email,
+  travel_date = EXCLUDED.travel_date,
+  number_of_person = EXCLUDED.number_of_person,
+  destination = EXCLUDED.destination,
+  package_selected = EXCLUDED.package_selected,
+  source = EXCLUDED.source,
+  lead_id = EXCLUDED.lead_id;
         `,
           [
             formattedTimestamp,
