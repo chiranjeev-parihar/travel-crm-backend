@@ -9,15 +9,9 @@ const syncGoogleSheet = require("./googleSync");
 
 const app = express();
 
-// ✅ Allow requests from your website (update this URL when deployed)
-app.use(cors({
-  origin: [
-    "http://localhost:5173",          // Website local dev
-    "http://localhost:3000",
-    "https://your-website.vercel.app", // ← Replace with your real website URL after deploy
-  ],
-  methods: ["GET", "POST", "PUT"],
-}));
+// ✅ Allow ALL origins — required so the Render-hosted backend accepts
+// requests from both localhost (dev) and the live website URL (prod)
+app.use(cors());
 
 app.use(helmet());
 app.use(morgan("dev"));
@@ -72,30 +66,11 @@ app.post("/leads", async (req, res) => {
       return res.status(400).json({ error: "Phone number is required" });
     }
 
+    // Always create a NEW lead row — every inquiry is tracked separately in the CRM
     await pool.query(
-      `
-      INSERT INTO leads (
-        name,
-        phone,
-        email,
-        destination,
-        source,
-        notes,
-        number_of_person,
-        package_selected,
-        lead_status
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'New')
-      ON CONFLICT (phone)
-      DO UPDATE SET
-        name              = COALESCE(EXCLUDED.name, leads.name),
-        email             = COALESCE(EXCLUDED.email, leads.email),
-        destination       = COALESCE(EXCLUDED.destination, leads.destination),
-        source            = EXCLUDED.source,
-        notes             = EXCLUDED.notes,
-        number_of_person  = COALESCE(EXCLUDED.number_of_person, leads.number_of_person),
-        package_selected  = COALESCE(EXCLUDED.package_selected, leads.package_selected)
-      `,
+      `INSERT INTO leads
+        (name, phone, email, destination, source, notes, number_of_person, package_selected, lead_status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'New', NOW())`,
       [
         name || null,
         phone,
@@ -103,7 +78,7 @@ app.post("/leads", async (req, res) => {
         destination || null,
         source || "Website",
         message || null,
-        number_of_person || null,
+        number_of_person ? parseInt(number_of_person) : null,
         package_selected || null,
       ]
     );
@@ -152,9 +127,9 @@ app.put("/leads/:id", async (req, res) => {
 ───────────────────────────────────────── */
 app.get("/analytics", async (req, res) => {
   try {
-    const total     = await pool.query("SELECT COUNT(*) FROM leads");
+    const total = await pool.query("SELECT COUNT(*) FROM leads");
     const closedWon = await pool.query("SELECT COUNT(*) FROM leads WHERE lead_status='Closed Won'");
-    const closedLost= await pool.query("SELECT COUNT(*) FROM leads WHERE lead_status='Closed Lost'");
+    const closedLost = await pool.query("SELECT COUNT(*) FROM leads WHERE lead_status='Closed Lost'");
 
     // Break down by source for the dashboard
     const sourceBreakdown = await pool.query(`
@@ -166,13 +141,13 @@ app.get("/analytics", async (req, res) => {
     `);
 
     const totalLeads = Number(total.rows[0].count);
-    const won        = Number(closedWon.rows[0].count);
+    const won = Number(closedWon.rows[0].count);
 
     res.json({
-      total:          totalLeads,
-      closedWon:      won,
-      closedLost:     Number(closedLost.rows[0].count),
-      conversion:     totalLeads ? ((won / totalLeads) * 100).toFixed(2) : 0,
+      total: totalLeads,
+      closedWon: won,
+      closedLost: Number(closedLost.rows[0].count),
+      conversion: totalLeads ? ((won / totalLeads) * 100).toFixed(2) : 0,
       sourceBreakdown: sourceBreakdown.rows,  // bonus: per-source stats
     });
   } catch (error) {
